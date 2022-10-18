@@ -1,0 +1,13 @@
+lmdb
+lmdbm
+lz4
+zstd
+msgpack
+pydantic
+
+
+numpy
+pyarrow
+pandas
+torch
+h5py
