@@ -8,7 +8,7 @@ from lmdbm import Lmdb
 
 from pydantic import validate_arguments
 
-from pylot.util import autopackb, autounpackb
+from .common import autopackb, autounpackb
 
 
 class ThunderDB(Lmdb):
@@ -76,7 +76,7 @@ class ThunderReader(collections.abc.Mapping):
         self._txn = None
 
     def _require_env(self):
-        if self._env is None:
+        if self._txn is None:
             self._env = lmdb.open(
                 str(self.path),
                 readonly=True,
@@ -93,6 +93,8 @@ class ThunderReader(collections.abc.Mapping):
 
     def __getitem__(self, key):
         self._require_env()
+        # if self._txn is None:
+        #     print(self._env, self._txn)
         data = self._txn.get(key.encode())
         if data is None:
             raise LookupError(f"Missing {key} while reading file {str(self.path)}")
@@ -125,6 +127,22 @@ class ThunderReader(collections.abc.Mapping):
             data = dict(executor.map(_thunder_load, keys))
         del _thunder_load
         return data
+
+    @classmethod
+    def from_dict(cls, path, mapping):
+        w = ThunderDict(path)
+        w.update(mapping)
+        return cls(path)
+
+    # @validate_arguments
+    # def extract(self, destination: pathlib.Path):
+    #     if destination.exists():
+    #         if not destination.is_dir():
+    #             raise ValueError(f"Destionation {destination} is not a directory")
+    #         if len((destination.iterdir())) > 0:
+    #             raise ValueError(f"Destination {destination} is not empty")
+    #     destination.mkdir(exist_ok=True, parents=True)
+    #     for file, data in self.items():
 
 
 class UniqueThunderReader(ThunderReader):

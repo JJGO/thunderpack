@@ -1,12 +1,11 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 import io
+import itertools
 import json
 import gzip
 import pathlib
 import pickle
-import shutil
-from typing import Union, Any, Optional, Literal
-from contextlib import contextmanager
+from typing import Any, Literal, Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -16,6 +15,7 @@ import PIL.Image
 import PIL.JpegImagePlugin
 import lz4.frame
 import zstd
+import soundfile as sf
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -73,6 +73,23 @@ class FileFormat(ABC):
     def decode(cls, data: bytes) -> object:
         mem = io.BytesIO(data)
         return cls.load(mem)
+
+
+class CompressionFormat(FileFormat):
+    pass
+
+
+class BinaryFormat(FileFormat):
+
+    EXTENSIONS = [".bin", ".BIN"]
+
+    @classmethod
+    def encode(cls, obj) -> bytes:
+        return obj
+
+    @classmethod
+    def decode(cls, data: bytes) -> object:
+        return data
 
 
 class NpyFormat(FileFormat):
@@ -290,7 +307,11 @@ class PickleFormat(FileFormat):
 class BaseImageFormat(FileFormat):
     @classmethod
     def encode(cls, obj: PIL.Image):
-        if isinstance(obj, PIL.Image.Image) and hasattr(obj, "filename") and ('.'+obj.format) in cls.EXTENSIONS:
+        if (
+            isinstance(obj, PIL.Image.Image)
+            and hasattr(obj, "filename")
+            and ("." + obj.format) in cls.EXTENSIONS
+        ):
             # avoid re-encoding, relevant for JPEGs
             orig = pathlib.Path(obj.filename)
             with orig.open("rb") as src:
@@ -327,7 +348,31 @@ class PNGFormat(BaseImageFormat):
     FORMAT = "png"
 
 
-class GzipFormat(FileFormat):
+class BaseAudioFormat(FileFormat):
+    @classmethod
+    def save(cls, obj: Tuple[np.ndarray, int], fp):
+        fp = cls.check_fp(fp)
+        sf.write(fp, obj)
+
+    @classmethod
+    def load(cls, fp) -> Tuple[np.ndarray, int]:
+        fp = cls.check_fp(fp)
+        return sf.read(fp)
+
+
+class WAVFormat(BaseAudioFormat):
+    EXTENSIONS = [".wav", ".WAV"]
+
+
+class FLACFormat(BaseAudioFormat):
+    EXTENSIONS = [".flac", ".FLAC"]
+
+
+class OGGFormat(BaseAudioFormat):
+    EXTENSIONS = [".ogg", ".OGG"]
+
+
+class GzipFormat(CompressionFormat):
 
     EXTENSIONS = [".gz", ".GZ"]
 
@@ -340,7 +385,7 @@ class GzipFormat(FileFormat):
         return gzip.decompress(data)
 
 
-class LZ4Format(FileFormat):
+class LZ4Format(CompressionFormat):
 
     EXTENSIONS = [".lz4", ".LZ4"]
 
@@ -353,7 +398,7 @@ class LZ4Format(FileFormat):
         return lz4.frame.decompress(data)
 
 
-class ZstdFormat(FileFormat):
+class ZstdFormat(CompressionFormat):
 
     EXTENSIONS = [".zst", ".ZST"]
 
@@ -378,6 +423,7 @@ class MsgpackFormat(FileFormat):
     def decode(cls, data: bytes) -> Any:
         return msgpack.unpackb(data)
 
+
 class PlaintextFormat(FileFormat):
 
     EXTENSIONS = [".txt", ".TXT", ".log", ".LOG"]
@@ -386,7 +432,7 @@ class PlaintextFormat(FileFormat):
     def save(cls, obj, fp):
         fp = cls.check_fp(fp)
         if isinstance(obj, list):
-            obj = '\n'.join(obj)
+            obj = "\n".join(obj)
         with fp.open("w") as f:
             f.write(obj)
 
@@ -394,9 +440,98 @@ class PlaintextFormat(FileFormat):
     def load(cls, fp) -> object:
         fp = cls.check_fp(fp)
         with fp.open("r") as f:
-            return f.read().strip().split('\n')
+            return f.read().strip().split("\n")
 
-_DEFAULTFORMAT = {}
+
+class InvalidExtensionError(Exception):
+    def __init__(self, extension: str):
+        message = f"Unsupported extension '.{extension}'"
+        super().__init__(message)
+        self.extension = extension
+
+
+class CompressedFileFormat(FileFormat):
+    def __init__(self, file_format: FileFormat, compression_format: CompressionFormat):
+        if not issubclass(file_format, FileFormat):
+            raise TypeError("file_format must be a FileFormat")
+        if not issubclass(compression_format, CompressionFormat):
+            raise TypeError("compression_format must be a CompressionFormat")
+        self.file_format = file_format
+        self.compression_format = compression_format
+        self.EXTENSIONS = [
+            fe + ce
+            for fe, ce in itertools.product(
+                self.file_format.EXTENSIONS, self.compression_format.EXTENSIONS
+            )
+        ]
+
+    def __repr__(self) -> str:
+        ff = f"{self.file_format.__module__}.{self.file_format.__name__}"
+        cf = f"{self.compression_format.__module__}.{self.compression_format.__name__}"
+        return f"{self.__class__.__module__}.{self.__class__.__name__}({ff}, {cf})"
+
+    def save(self, obj, fp):
+        data = self.file_format.encode(obj)
+        self.compression_format.save(data, fp)
+
+    def load(self, fp) -> object:
+        data = self.compression_format.load(fp)
+        return self.file_format.decode(data)
+
+    def encode(self, obj) -> bytes:
+        data = self.file_format.encode(obj)
+        return self.compression_format.encode(data)
+
+    def decode(self, data: bytes) -> object:
+        data = self.compression_format.decode(data)
+        return self.file_format.decode(data)
+
+
+class SupportedFormats:
+
+    _formats: Dict[str, FileFormat] = {}
+
+    @classmethod
+    def register(cls, format_cls: FileFormat, force=False):
+        for extension in format_cls.EXTENSIONS:
+            extension = extension.strip(".")
+            assert force or extension not in cls._formats
+            cls._formats[extension] = format_cls
+
+    @classmethod
+    def get_format(cls, extension: str) -> FileFormat:
+        extension = extension.strip(".")
+        if extension not in cls._formats and "." in extension:
+            file_ext, compression_ext = extension.split(".")
+            compressed_fmt = CompressedFileFormat(
+                cls.get_format(file_ext), cls.get_format(compression_ext)
+            )
+            cls.register(compressed_fmt)
+
+        fmt = cls._formats.get(extension, None)
+        if fmt is not None:
+            return fmt
+        raise InvalidExtensionError(extension)
+
+    @classmethod
+    def extensions(cls) -> List[str]:
+        return list(cls._formats.keys())
+
+    @classmethod
+    def formats(cls) -> List[FileFormat]:
+        return list(set(cls._formats.values()))
+
+    @classmethod
+    def compression_extensions(cls) -> List[str]:
+        return [e for e, f in cls._formats.items() if isinstance(f, CompressionFormat)]
+
+    @classmethod
+    def compression_formats(cls) -> List[FileFormat]:
+        return list(
+            set([f for f in cls.formats.values() if isinstance(f, CompressionFormat)])
+        )
+
+
 for format_cls in (
     NpyFormat,
     NpzFormat,
@@ -409,115 +544,14 @@ for format_cls in (
     PickleFormat,
     PNGFormat,
     JPGFormat,
+    MsgpackFormat,
+    PlaintextFormat,
     GzipFormat,
     LZ4Format,
     ZstdFormat,
-    MsgpackFormat,
-    PlaintextFormat,
+    BinaryFormat,
+    OGGFormat,
+    WAVFormat,
+    FLACFormat,
 ):
-    for extension in format_cls.EXTENSIONS:
-        extension = extension.strip(".")
-        assert extension not in _DEFAULTFORMAT
-        _DEFAULTFORMAT[extension] = format_cls
-
-
-class InvalidExtensionError(Exception):
-
-    valid_extensions = "|".join(list(_DEFAULTFORMAT))
-
-    def __init__(self, extension):
-        message = f"Unsupported extension '.{extension}'"
-        super().__init__(message)
-        self.extension = extension
-
-
-def autoencode(obj: object, filename: str) -> bytes:
-    _, *exts = str(filename).split(".")
-    data = obj
-    for ext in exts:
-        if ext not in _DEFAULTFORMAT:
-            raise InvalidExtensionError(ext)
-        data = _DEFAULTFORMAT[ext].encode(data)
-    return data
-
-
-def autodecode(data: bytes, filename: str) -> object:
-    _, *exts = str(filename).split(".")
-    for ext in reversed(exts):
-        if ext not in _DEFAULTFORMAT:
-            raise InvalidExtensionError(ext)
-        data = _DEFAULTFORMAT[ext].decode(data)
-    return data
-
-
-def autoload(path: Union[str, pathlib.Path]) -> object:
-    if isinstance(path, str):
-        path = pathlib.Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"No such file {str(path)}")
-
-    ext = path.suffix.strip(".")
-    if ext not in _DEFAULTFORMAT:
-        raise InvalidExtensionError(ext)
-    if ext.lower() in ("lz4", "zst", "gz"):
-        return autodecode(_DEFAULTFORMAT[ext].load(path), path.stem)
-    return _DEFAULTFORMAT[ext].load(path)
-
-
-def autosave(obj, path: Union[str, pathlib.Path], parents=True) -> object:
-    if isinstance(path, str):
-        path = pathlib.Path(path)
-    ext = path.suffix.strip(".")
-    if ext not in _DEFAULTFORMAT:
-        raise InvalidExtensionError(ext)
-    if parents:
-        path.parent.mkdir(exist_ok=True, parents=True)
-    if ext.lower() in ("lz4", "zst", "gz"):
-        obj = autoencode(obj, path.stem)
-    return _DEFAULTFORMAT[ext].save(obj, path)
-
-
-_ENCODERS = {
-    np.ndarray: ".msgpack.lz4",
-    torch.Tensor: ".pt.lz4",
-    PIL.JpegImagePlugin.JpegImageFile: ".jpg",
-    PIL.Image.Image: ".png",
-    pd.DataFrame: ".parquet",
-    (str, list, tuple, dict, int, float, bool, bytes): ".msgpack.lz4",
-    object: ".pkl.lz4",
-}
-
-
-def autopackb(obj: object) -> bytes:
-    for types, ext in _ENCODERS.items():
-        if isinstance(obj, types):
-            break
-    data = autoencode(obj, ext)
-    # doing ext || null || payload is faster than msgpack-ing it
-    return ext.encode() + b"\x00" + data
-
-
-def autounpackb(data: bytes) -> object:
-    ext, _, data = data.partition(b"\x00")
-    return autodecode(data, ext.decode())
-
-
-@contextmanager
-def inplace_edit(file, backup=False):
-    if isinstance(file, str):
-        file = pathlib.Path(file)
-    obj = autoload(file)
-    yield obj
-    if backup:
-        shutil.copy(file, file.with_suffix(file.suffix + ".bk"))
-    autosave(obj, file)
-
-
-
-
-def is_jsonable(x):
-    try:
-        json.dumps(x)
-        return True
-    except (TypeError, OverflowError):
-        return False
+    SupportedFormats.register(format_cls)
