@@ -11,3 +11,5 @@ pyarrow
 pandas
 torch
 h5py
+Pillow
+soundfile
