@@ -1,27 +1,24 @@
-from abc import ABC
 import io
 import itertools
 import json
-import gzip
 import pathlib
 import pickle
-from typing import Any, Literal, Dict, List, Tuple
-
-import numpy as np
-import torch
-import pandas as pd
-import yaml
-import PIL.Image
-import PIL.JpegImagePlugin
-import lz4.frame
-import zstd
-import soundfile as sf
-
-import pyarrow as pa
-import pyarrow.parquet as pq
+from abc import ABC
+from typing import Any, Dict, List, Literal, Tuple
 
 import msgpack
 import msgpack_numpy as m
+import numpy as np
+import pandas as pd
+import PIL.Image
+import PIL.JpegImagePlugin
+import pyarrow as pa
+import pyarrow.feather as feather
+import pyarrow.parquet as pq
+import soundfile as sf
+import yaml
+
+import torch
 
 m.patch()
 
@@ -75,13 +72,14 @@ class FileFormat(ABC):
         return cls.load(mem)
 
 
-class CompressionFormat(FileFormat):
+
+class CompressedFileFormat(FileFormat):
     pass
 
 
 class BinaryFormat(FileFormat):
 
-    EXTENSIONS = [".bin", ".BIN"]
+    EXTENSIONS = [".bin"]
 
     @classmethod
     def encode(cls, obj) -> bytes:
@@ -94,7 +92,7 @@ class BinaryFormat(FileFormat):
 
 class NpyFormat(FileFormat):
 
-    EXTENSIONS = [".npy", ".NPY"]
+    EXTENSIONS = [".npy"]
 
     @classmethod
     def save(cls, obj: np.ndarray, fp):
@@ -109,7 +107,7 @@ class NpyFormat(FileFormat):
 
 class NpzFormat(FileFormat):
 
-    EXTENSIONS = [".npz", ".NPZ"]
+    EXTENSIONS = [".npz"]
 
     @classmethod
     def save(cls, obj: np.ndarray, fp):
@@ -124,7 +122,7 @@ class NpzFormat(FileFormat):
 
 class PtFormat(FileFormat):
 
-    EXTENSIONS = [".pt", ".PT"]
+    EXTENSIONS = [".pt"]
 
     @classmethod
     def save(cls, obj, fp):
@@ -139,7 +137,7 @@ class PtFormat(FileFormat):
 
 class YamlFormat(FileFormat):
 
-    EXTENSIONS = [".yaml", ".YAML", ".yml", ".YML"]
+    EXTENSIONS = [".yaml", ".yml"]
 
     @classmethod
     def encode(cls, obj) -> str:
@@ -177,7 +175,7 @@ class NumpyJSONEncoder(json.JSONEncoder):
 
 class JsonFormat(FileFormat):
 
-    EXTENSIONS = [".json", ".JSON"]
+    EXTENSIONS = [".json"]
 
     @classmethod
     def encode(cls, obj) -> bytes:
@@ -202,7 +200,7 @@ class JsonFormat(FileFormat):
 
 class JsonlFormat(FileFormat):
 
-    EXTENSIONS = [".jsonl", ".JSONL"]
+    EXTENSIONS = [".jsonl"]
 
     @classmethod
     def save(cls, obj, fp):
@@ -219,7 +217,7 @@ class JsonlFormat(FileFormat):
 
 class CsvFormat(FileFormat):
 
-    EXTENSIONS = [".csv", ".CSV"]
+    EXTENSIONS = [".csv"]
 
     @classmethod
     def save(cls, obj, fp):
@@ -251,12 +249,12 @@ class CsvFormat(FileFormat):
 #         fp = cls.check_fp(fp)
 
 
-class ParquetFormat(FileFormat):
+class ParquetFormat(CompressedFileFormat):
 
     # Tweaked version of write/read_parquet to support
     # storing .attrs metadata in the parquet metadata fields
 
-    EXTENSIONS = [".parquet", ".PARQUET", ".pq", ".PQ"]
+    EXTENSIONS = [".parquet", ".pq"]
 
     @classmethod
     def save(cls, obj, fp):
@@ -279,9 +277,23 @@ class ParquetFormat(FileFormat):
         return df
 
 
+class FeatherFormat(CompressedFileFormat):
+    # TODO feather supports lz4 and zstd natively, reject wrapper-compression
+    EXTENSIONS = [".feather"]
+
+    @classmethod
+    def save(cls, obj, fp):
+        fp = cls.check_fp(fp)
+        feather.write_feather(obj, fp)
+
+    @classmethod
+    def load(cls, fp) -> object:
+        return feather.read_feather(fp)
+
+
 class PickleFormat(FileFormat):
 
-    EXTENSIONS = [".pkl", ".PKL", ".pickle", ".PICKLE"]
+    EXTENSIONS = [".pkl", ".pickle"]
 
     @classmethod
     def save(cls, obj, fp):
@@ -304,7 +316,7 @@ class PickleFormat(FileFormat):
         return pickle.loads(data)
 
 
-class BaseImageFormat(FileFormat):
+class ImageFormat(CompressedFileFormat):
     @classmethod
     def encode(cls, obj: PIL.Image):
         if (
@@ -336,23 +348,23 @@ class BaseImageFormat(FileFormat):
         return PIL.Image.open(fp)
 
 
-class JPGFormat(BaseImageFormat):
+class JPGFormat(ImageFormat):
 
-    EXTENSIONS = [".jpg", ".JPG", ".jpeg", ".JPEG"]
+    EXTENSIONS = [".jpg", ".jpeg"]
     FORMAT = "jpeg"
 
 
-class PNGFormat(BaseImageFormat):
+class PNGFormat(ImageFormat):
 
-    EXTENSIONS = [".png", ".PNG"]
+    EXTENSIONS = [".png"]
     FORMAT = "png"
 
 
-class BaseAudioFormat(FileFormat):
+class AudioFormat(CompressedFileFormat):
     @classmethod
     def save(cls, obj: Tuple[np.ndarray, int], fp):
         fp = cls.check_fp(fp)
-        sf.write(fp, obj)
+        sf.write(fp, obj, samplerate=44_100)
 
     @classmethod
     def load(cls, fp) -> Tuple[np.ndarray, int]:
@@ -360,60 +372,21 @@ class BaseAudioFormat(FileFormat):
         return sf.read(fp)
 
 
-class WAVFormat(BaseAudioFormat):
-    EXTENSIONS = [".wav", ".WAV"]
+class WAVFormat(AudioFormat):
+    EXTENSIONS = [".wav"]
 
 
-class FLACFormat(BaseAudioFormat):
-    EXTENSIONS = [".flac", ".FLAC"]
+class FLACFormat(AudioFormat):
+    EXTENSIONS = [".flac"]
 
 
-class OGGFormat(BaseAudioFormat):
-    EXTENSIONS = [".ogg", ".OGG"]
-
-
-class GzipFormat(CompressionFormat):
-
-    EXTENSIONS = [".gz", ".GZ"]
-
-    @classmethod
-    def encode(cls, data: bytes) -> bytes:
-        return gzip.compress(data)
-
-    @classmethod
-    def decode(cls, data: bytes) -> bytes:
-        return gzip.decompress(data)
-
-
-class LZ4Format(CompressionFormat):
-
-    EXTENSIONS = [".lz4", ".LZ4"]
-
-    @classmethod
-    def encode(cls, data: bytes) -> bytes:
-        return lz4.frame.compress(data)
-
-    @classmethod
-    def decode(cls, data: bytes) -> bytes:
-        return lz4.frame.decompress(data)
-
-
-class ZstdFormat(CompressionFormat):
-
-    EXTENSIONS = [".zst", ".ZST"]
-
-    @classmethod
-    def encode(cls, data: bytes) -> bytes:
-        return zstd.compress(data)
-
-    @classmethod
-    def decode(cls, data: bytes) -> bytes:
-        return zstd.decompress(data)
+class OGGFormat(AudioFormat):
+    EXTENSIONS = [".ogg"]
 
 
 class MsgpackFormat(FileFormat):
 
-    EXTENSIONS = [".msgpack", ".MSGPACK"]
+    EXTENSIONS = [".msgpack"]
 
     @classmethod
     def encode(cls, data: Any) -> bytes:
@@ -421,12 +394,12 @@ class MsgpackFormat(FileFormat):
 
     @classmethod
     def decode(cls, data: bytes) -> Any:
-        return msgpack.unpackb(data)
+        return msgpack.unpackb(data, raw=True)
 
 
 class PlaintextFormat(FileFormat):
 
-    EXTENSIONS = [".txt", ".TXT", ".log", ".LOG"]
+    EXTENSIONS = [".txt", ".log"]
 
     @classmethod
     def save(cls, obj, fp):
@@ -442,116 +415,3 @@ class PlaintextFormat(FileFormat):
         with fp.open("r") as f:
             return f.read().strip().split("\n")
 
-
-class InvalidExtensionError(Exception):
-    def __init__(self, extension: str):
-        message = f"Unsupported extension '.{extension}'"
-        super().__init__(message)
-        self.extension = extension
-
-
-class CompressedFileFormat(FileFormat):
-    def __init__(self, file_format: FileFormat, compression_format: CompressionFormat):
-        if not issubclass(file_format, FileFormat):
-            raise TypeError("file_format must be a FileFormat")
-        if not issubclass(compression_format, CompressionFormat):
-            raise TypeError("compression_format must be a CompressionFormat")
-        self.file_format = file_format
-        self.compression_format = compression_format
-        self.EXTENSIONS = [
-            fe + ce
-            for fe, ce in itertools.product(
-                self.file_format.EXTENSIONS, self.compression_format.EXTENSIONS
-            )
-        ]
-
-    def __repr__(self) -> str:
-        ff = f"{self.file_format.__module__}.{self.file_format.__name__}"
-        cf = f"{self.compression_format.__module__}.{self.compression_format.__name__}"
-        return f"{self.__class__.__module__}.{self.__class__.__name__}({ff}, {cf})"
-
-    def save(self, obj, fp):
-        data = self.file_format.encode(obj)
-        self.compression_format.save(data, fp)
-
-    def load(self, fp) -> object:
-        data = self.compression_format.load(fp)
-        return self.file_format.decode(data)
-
-    def encode(self, obj) -> bytes:
-        data = self.file_format.encode(obj)
-        return self.compression_format.encode(data)
-
-    def decode(self, data: bytes) -> object:
-        data = self.compression_format.decode(data)
-        return self.file_format.decode(data)
-
-
-class SupportedFormats:
-
-    _formats: Dict[str, FileFormat] = {}
-
-    @classmethod
-    def register(cls, format_cls: FileFormat, force=False):
-        for extension in format_cls.EXTENSIONS:
-            extension = extension.strip(".")
-            assert force or extension not in cls._formats
-            cls._formats[extension] = format_cls
-
-    @classmethod
-    def get_format(cls, extension: str) -> FileFormat:
-        extension = extension.strip(".")
-        if extension not in cls._formats and "." in extension:
-            file_ext, compression_ext = extension.split(".")
-            compressed_fmt = CompressedFileFormat(
-                cls.get_format(file_ext), cls.get_format(compression_ext)
-            )
-            cls.register(compressed_fmt)
-
-        fmt = cls._formats.get(extension, None)
-        if fmt is not None:
-            return fmt
-        raise InvalidExtensionError(extension)
-
-    @classmethod
-    def extensions(cls) -> List[str]:
-        return list(cls._formats.keys())
-
-    @classmethod
-    def formats(cls) -> List[FileFormat]:
-        return list(set(cls._formats.values()))
-
-    @classmethod
-    def compression_extensions(cls) -> List[str]:
-        return [e for e, f in cls._formats.items() if isinstance(f, CompressionFormat)]
-
-    @classmethod
-    def compression_formats(cls) -> List[FileFormat]:
-        return list(
-            set([f for f in cls.formats.values() if isinstance(f, CompressionFormat)])
-        )
-
-
-for format_cls in (
-    NpyFormat,
-    NpzFormat,
-    PtFormat,
-    YamlFormat,
-    JsonFormat,
-    JsonlFormat,
-    CsvFormat,
-    ParquetFormat,
-    PickleFormat,
-    PNGFormat,
-    JPGFormat,
-    MsgpackFormat,
-    PlaintextFormat,
-    GzipFormat,
-    LZ4Format,
-    ZstdFormat,
-    BinaryFormat,
-    OGGFormat,
-    WAVFormat,
-    FLACFormat,
-):
-    SupportedFormats.register(format_cls)
