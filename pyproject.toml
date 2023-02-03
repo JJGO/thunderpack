@@ -1,0 +1,59 @@
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thunderpack"
+version = "0.0.1"
+description = "Dataset library for blazingly fast data loading and decoding"
+authors = [{ name = "Jose Javier Gonzalez Ortiz", email = "josejg@mit.edu" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+repository = "https://github.com/JJGO/thunderpack"
+homepage = "https://github.com/JJGO/thunderpack"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["thunderpack", "formats", "machine learning", "encoding"]
+dependencies = [
+    "lmdb",
+    "lmdbm",
+    "lz4",
+    "zstd",
+    "msgpack",
+    "pydantic",
+    "python-snappy",
+    "brotli",
+    "numpy",
+    "pyarrow",
+    "pandas",
+    "torch",
+    "Pillow",
+    "soundfile",
+    "pyyaml",
+    "msgpack_numpy",
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "pyright"]
+
+[project.urls]
+Homepage = "https://github.com/jjgo/thunderpack"
+
+# [project.scripts]
+# realpython = "reader.__main__:main"
+
+[tool.bumpver]
+current_version = "0.0.1"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message  = "Bump version {old_version} -> {new_version}"
+commit          = true
+tag             = true
+push            = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = ['current_version = "{version}"', 'version = "{version}"']
+"thunderpack/__init__.py" = ["{version}"]

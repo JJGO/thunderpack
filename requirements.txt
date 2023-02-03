@@ -1,15 +1,14 @@
-lmdb
-lmdbm
-lz4
-zstd
-msgpack
-pydantic
-
-
-numpy
-pyarrow
-pandas
-torch
-h5py
-Pillow
-soundfile
+    lmdb
+    lmdbm
+    lz4
+    zstd
+    msgpack
+    pydantic
+    python-snappy
+    brotli
+    numpy
+    pyarrow
+    pandas
+    torch
+    Pillow
+    soundfile
