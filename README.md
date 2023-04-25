@@ -18,11 +18,6 @@ Most deep learning comprise of media (image, video, sound) are distributed as pl
 - **Customizability** - ThunderPack can easily be extended to support other  (also feel free to submit a PR with your extension of choice).
 - **Cloud Native** - Compatible with streaming data schemes, and with built-in sharding support.
 
-
-## Quickstart
-
->>> Example with the TinyImageNet dataset
-
 ## Installation
 
 ThunderPack can be installed via `pip`. For the stable version:
