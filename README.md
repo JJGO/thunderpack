@@ -1,6 +1,6 @@
 # ThunderPack
 
->  Blazingly fast multi-modal data format for training deep neural networks
+_Blazingly fast multi-modal data format for training deep neural networks_
 
 ## TL;DR
 
