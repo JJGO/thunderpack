@@ -4,7 +4,10 @@
 
 ## TL;DR
 
-Most deep learning comprise of media (image, video, sound) are distributed as plain individual files, but this can incur in a lot of inefficiencies due to the filesystem behaving poorly when many files are involved. ThunderPack ui
+Most deep learning comprise of media (image, video, sound) are distributed as plain individual files, but this can incur in a lot of inefficiencies due to the filesystem behaving poorly when many files are involved. ThunderPack solves the issue by using **LMDB** an lightweight database, that supports blazingly fast reads.
+
+![](https://github.com/JJGO/thunderpack/blob/assets/read-time.png)
+_Benchmark of random read access on various data tensor storage solutions (lower read time is better). ThunderPack scales very well to large amount of datapoints, whereas other solutions present significant slowdowns even when using local SSD hardware._
 
 ## Features
 
