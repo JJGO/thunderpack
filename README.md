@@ -2,6 +2,8 @@
 
 _Blazingly fast multi-modal data format for training deep neural networks_
 
+🚧 🚧 🚧 THIS REPO IS UNDER CONSTRUCTION 🚧 🚧 🚧
+
 ## ❓ TL;DR
 
 Most deep learning comprise of media (image, video, sound) are distributed as plain individual files, but this can incur in a lot of inefficiencies due to the filesystem behaving poorly when many files are involved. ThunderPack solves the issue by using **LMDB** an lightweight database, that supports blazingly fast reads.
