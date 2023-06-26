@@ -2,8 +2,6 @@
 
 _Blazingly fast multi-modal data format for training deep neural networks_
 
-🚧 🚧 🚧 THIS REPO IS UNDER CONSTRUCTION 🚧 🚧 🚧
-
 ## ❓ TL;DR
 
 Most deep learning comprise of media (image, video, sound) are distributed as plain individual files, but this can incur in a lot of inefficiencies due to the filesystem behaving poorly when many files are involved. ThunderPack solves the issue by using **LMDB** an lightweight database, that supports blazingly fast reads.
@@ -27,12 +25,13 @@ _Benchmark of random read access on various data tensor storage solutions (lower
 
 ## 💾 Installation
 
+<!--
 ThunderPack can be installed via `pip`. For the stable version:
 
 ```shell
 pip install thunderpack
 ```
-
+-->
 Or for the latest version:
 
 ```shell
@@ -48,6 +47,70 @@ python -m pip install -r ./thunderpack/requirements.txt
 
 export PYTHONPATH="$PYTHONPATH:$(realpath ./thunderpack)"
 ```
+
+## Quickstart
+
+Thunderpack has asymetric APIs for writing and reading data to maximize read throughput and speed.
+
+First, we create a dataset using the `ThunderDB` object which behaves like a dictionary and it will automatically and 
+transparently encode data when assigning values. Keys are completely arbitrary and schema is left to the user. 
+In this case we store the `metadata`, `samples` and all the keys corresponding to datapoints 
+
+```python
+from thunderpack import ThunderDB
+
+with T.ThunderDB.open('/tmp/thunderpack_test', 'c') as db:
+    db['metadata'] = {'version': '0.1', 'n_samples': 100}
+    
+    keys = []
+    for i in range(100):
+        key = f'sample{i:02d}'
+        x = np.random.normal(size=(128,128))
+        y = np.random.normal(size=(128,128))
+        # Thunderpack will serialize the tuple and numpy arrays automatically
+        db[key] = (x, y) 
+        keys.append(key)
+    db['samples'] = keys
+```
+
+Once created, we can read the data using `ThunderReader`, which as a dict-like API
+
+```python
+from thunderpack import ThunderReader
+
+reader = ThunderReader('/tmp/thunderpack_test')
+print(reader['metadata'])
+# {'version': '0.1', 'n_samples': 100}
+print(reader['samples'][:5])
+# ['sample00', 'sample01', 'sample02', 'sample03', 'sample04']
+print(reader['sample00'][0].shape)
+# (128, 128)
+```
+
+Thunderpack provides a PyTorch compatible Dataset object via `ThunderDataset`, which 
+ assigns a `._db` attribute with the `ThunderReader` object 
+
+```python
+class MyDataset(ThunderDataset):
+    
+    def __init__(self, file):
+        super().__init__(file)
+        # Access through self._db attribute
+        self.samples = self._db['samples']
+    
+    def __len__(self):
+        return len(self.samples)
+    
+    def __getitem__(self, idx):
+        return self._db[self.samples[idx]]
+
+d = MyDataset('/tmp/thunderpack_test')
+print(len(d))
+# 100
+print(d[0][0].shape)
+# (128, 128)
+```
+
 
 ## 📁 Supported Formats
 
