@@ -19,7 +19,7 @@ _Benchmark of random read access on various data tensor storage solutions (lower
 - **Improved Tensor I/O** - Faster primitives for (de)serializing Numpy `ndarray`s, Torch `Tensor`s and `Jax` `ndarray`s.
 - **Extensive extension support** - ThunderPack supports a wide variety of data formats out of the box.
 - **Customizability** - ThunderPack can easily be extended to support other  (also feel free to submit a PR with your extension of choice).
-- **Cloud Native** - Compatible with streaming data schemes, and with built-in sharding support.
+<!-- - **Cloud Native** - Compatible with streaming data schemes, and with built-in sharding support. -->
 
 <!-- ## 🚀 Quickstart -->
 
