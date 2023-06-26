@@ -1,4 +1,4 @@
-from .formats import SupportedFormats
+from .supported import SupportedFormats
 from .common import (
     autoencode,
     autodecode,

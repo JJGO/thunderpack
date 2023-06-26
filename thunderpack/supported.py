@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 from .compression import *
-from .compression import ChainedFileFormat, CompressionFormat
+from .compression import ChainedFileCompression, CompressionFormat
 from .formats import *
 from .formats import FileFormat
 
@@ -29,7 +29,7 @@ class SupportedFormats:
         extension = extension.strip(".").lower()
         if extension not in cls._formats and "." in extension:
             file_ext, compression_ext = extension.split(".")
-            compressed_fmt = ChainedFileFormat(
+            compressed_fmt = ChainedFileCompression(
                 cls.get_format(file_ext), cls.get_format(compression_ext)
             )
             cls.register(compressed_fmt)

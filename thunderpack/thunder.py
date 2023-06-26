@@ -102,7 +102,7 @@ class ThunderReader(collections.abc.Mapping):
 
     def keys(self):
         self._require_env()
-        for key, value in self._txn.cursor().iternext(keys=True, values=True):
+        for key in self._txn.cursor().iternext(keys=True, values=False):
             yield key.decode()
 
     def __len__(self):

@@ -9,8 +9,6 @@ description = "Dataset library for blazingly fast data loading and decoding"
 authors = [{ name = "Jose Javier Gonzalez Ortiz", email = "josejg@mit.edu" }]
 license = { file = "LICENSE" }
 readme = "README.md"
-repository = "https://github.com/JJGO/thunderpack"
-homepage = "https://github.com/JJGO/thunderpack"
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
@@ -42,6 +40,7 @@ dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "pyright"]
 
 [project.urls]
 Homepage = "https://github.com/jjgo/thunderpack"
+Repository = "https://github.com/jjgo/thunderpack"
 
 # [project.scripts]
 # realpython = "reader.__main__:main"

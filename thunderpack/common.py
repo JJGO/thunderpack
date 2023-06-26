@@ -9,7 +9,9 @@ import pandas as pd
 import PIL.Image
 import PIL.JpegImagePlugin
 
-from .formats import SupportedFormats, CompressionFormat, FileFormat
+from .supported import SupportedFormats
+from .formats import FileFormat
+from .compression import CompressionFormat
 
 
 def autoencode(obj: object, filename: str) -> bytes:
