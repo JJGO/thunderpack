@@ -59,7 +59,7 @@ In this case we store the `metadata`, `samples` and all the keys corresponding t
 ```python
 from thunderpack import ThunderDB
 
-with T.ThunderDB.open('/tmp/thunderpack_test', 'c') as db:
+with ThunderDB.open('/tmp/thunderpack_test', 'c') as db:
     db['metadata'] = {'version': '0.1', 'n_samples': 100}
     
     keys = []
@@ -91,6 +91,7 @@ Thunderpack provides a PyTorch compatible Dataset object via `ThunderDataset`, w
  assigns a `._db` attribute with the `ThunderReader` object 
 
 ```python
+from thunderpack.torch import ThunderDataset
 class MyDataset(ThunderDataset):
     
     def __init__(self, file):
