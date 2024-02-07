@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "thunderpack"
-version = "0.0.1"
+version = "0.0.2"
 description = "Dataset library for blazingly fast data loading and decoding"
 authors = [{ name = "Jose Javier Gonzalez Ortiz", email = "josejg@mit.edu" }]
 license = { file = "LICENSE" }
@@ -46,7 +46,7 @@ Repository = "https://github.com/jjgo/thunderpack"
 # realpython = "reader.__main__:main"
 
 [tool.bumpver]
-current_version = "0.0.1"
+current_version = "0.0.2"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message  = "Bump version {old_version} -> {new_version}"
 commit          = true

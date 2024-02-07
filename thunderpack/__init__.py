@@ -11,4 +11,4 @@ from .common import (
 from .thunder import ThunderDB, ThunderDict, ThunderReader, ThunderLoader
 
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
