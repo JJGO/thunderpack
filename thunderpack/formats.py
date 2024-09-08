@@ -394,7 +394,7 @@ class MsgpackFormat(FileFormat):
 
     @classmethod
     def decode(cls, data: bytes) -> Any:
-        return msgpack.unpackb(data) #, raw=True)
+        return msgpack.unpackb(data, strict_map_key=False) #, raw=True)
 
 
 class PlaintextFormat(FileFormat):
